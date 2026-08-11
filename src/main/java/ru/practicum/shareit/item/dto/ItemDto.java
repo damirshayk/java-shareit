@@ -21,4 +21,10 @@ public class ItemDto {
 
     @NotNull(message = "Статус доступности должен быть указан")
     private Boolean available;
+
+    private Long requestId;
+
+    public ItemDto(Long id, String name, String description, Boolean available) {
+        this(id, name, description, available, null);
+    }
 }

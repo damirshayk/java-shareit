@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.item.dto.ItemDto;
 import ru.practicum.shareit.item.model.Item;
+import ru.practicum.shareit.request.ItemRequest;
 import ru.practicum.shareit.user.InMemoryUserRepository;
 import ru.practicum.shareit.user.UserDto;
 import ru.practicum.shareit.user.UserService;
@@ -52,6 +53,31 @@ class ItemServiceImplTest {
     }
 
     @Test
+    void mapperShouldIncludeRequestId() {
+        ItemRequest request = new ItemRequest();
+        request.setId(42L);
+        Item item = new Item(
+                1L,
+                "Drill",
+                "Impact drill",
+                true,
+                userRepository.findById(ownerId).orElseThrow(),
+                request
+        );
+
+        ItemDto itemDto = ItemMapper.toItemDto(item);
+
+        assertThat(itemDto.getRequestId()).isEqualTo(request.getId());
+    }
+
+    @Test
+    void getAllByOwnerShouldReturnEmptyForUnknownOwner() {
+        Long unknownOwnerId = ownerId + 1000;
+
+        assertThat(itemService.getAllByOwner(unknownOwnerId)).isEmpty();
+    }
+
+    @Test
     void createShouldIgnoreProvidedId() {
         ItemDto created = itemService.create(
                 ownerId,
@@ -69,6 +95,20 @@ class ItemServiceImplTest {
                 99L,
                 new ItemDto(null, "Drill", "Impact drill", true)
         )).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void getByIdShouldAllowUnknownViewer() {
+        ItemDto created = itemService.create(
+                ownerId,
+                new ItemDto(null, "Drill", "Impact drill", true)
+        );
+        Long unknownUserId = ownerId + 1000;
+
+        ItemDto result = itemService.getById(unknownUserId, created.getId());
+
+        assertThat(result.getId()).isEqualTo(created.getId());
+        assertThat(result.getName()).isEqualTo(created.getName());
     }
 
     @Test
@@ -187,6 +227,19 @@ class ItemServiceImplTest {
         assertThat(itemService.search(ownerId, "drill"))
                 .extracting(ItemDto::getId)
                 .containsExactly(anotherUsersItem.getId());
+    }
+
+    @Test
+    void searchShouldAllowUnknownUser() {
+        ItemDto created = itemService.create(
+                ownerId,
+                new ItemDto(null, "Drill", "Impact drill", true)
+        );
+        Long unknownUserId = ownerId + 1000;
+
+        assertThat(itemService.search(unknownUserId, "drill"))
+                .extracting(ItemDto::getId)
+                .containsExactly(created.getId());
     }
 
     @Test

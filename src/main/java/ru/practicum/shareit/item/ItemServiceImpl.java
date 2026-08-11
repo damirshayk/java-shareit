@@ -50,13 +50,11 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public ItemDto getById(Long userId, Long itemId) {
-        findUser(userId);
         return ItemMapper.toItemDto(findItem(itemId));
     }
 
     @Override
     public List<ItemDto> getAllByOwner(Long ownerId) {
-        findUser(ownerId);
         return itemRepository.findAllByOwnerId(ownerId).stream()
                 .map(ItemMapper::toItemDto)
                 .toList();
@@ -64,7 +62,6 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public List<ItemDto> search(Long userId, String text) {
-        findUser(userId);
         return itemRepository.search(text).stream()
                 .map(ItemMapper::toItemDto)
                 .toList();
