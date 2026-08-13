@@ -27,6 +27,12 @@ public class ErrorHandler {
         return new ErrorResponse(exception.getMessage());
     }
 
+    @ExceptionHandler(ForbiddenException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse handleForbidden(ForbiddenException exception) {
+        return new ErrorResponse(exception.getMessage());
+    }
+
     @ExceptionHandler(ValidationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleValidation(ValidationException exception) {

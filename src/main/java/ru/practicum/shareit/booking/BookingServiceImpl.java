@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.booking.dto.BookingCreateDto;
 import ru.practicum.shareit.booking.dto.BookingDto;
+import ru.practicum.shareit.exception.ForbiddenException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.item.ItemRepository;
@@ -54,7 +55,9 @@ public class BookingServiceImpl implements BookingService {
     public BookingDto approve(Long ownerId, Long bookingId, boolean approved) {
         Booking booking = findBooking(bookingId);
         if (!booking.getItem().getOwner().getId().equals(ownerId)) {
-            throw new ValidationException("Подтвердить бронирование может только владелец вещи");
+            throw new ForbiddenException(
+                    "Бронирование с id " + bookingId + " недоступно пользователю"
+            );
         }
         if (booking.getStatus() != BookingStatus.WAITING) {
             throw new ValidationException("Бронирование уже рассмотрено");
