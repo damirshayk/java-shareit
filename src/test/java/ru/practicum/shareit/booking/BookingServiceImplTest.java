@@ -2,6 +2,8 @@ package ru.practicum.shareit.booking;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,6 +25,7 @@ import ru.practicum.shareit.user.UserService;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
@@ -49,6 +52,9 @@ class BookingServiceImplTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Test
     void ownerShouldApproveBookingCreatedByAnotherUser() {
@@ -89,6 +95,31 @@ class BookingServiceImplTest {
         assertThat(itemJson.has("id")).isTrue();
         assertThat(itemJson.has("name")).isTrue();
         assertThat(itemJson.size()).isEqualTo(2);
+    }
+
+    @Test
+    void detachedBookingToStringShouldNotLoadLazyRelations() {
+        UserDto owner = createUser("Owner", "owner@example.com");
+        UserDto booker = createUser("Booker", "booker@example.com");
+        ItemDto item = createItem(owner.getId(), true);
+        BookingDto booking = bookingService.create(
+                booker.getId(),
+                new BookingCreateDto(
+                        item.getId(),
+                        LocalDateTime.now().plusDays(1),
+                        LocalDateTime.now().plusDays(2)
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+
+        Booking detachedBooking = entityManager.find(Booking.class, booking.getId());
+        entityManager.clear();
+
+        assertThatCode(detachedBooking::toString).doesNotThrowAnyException();
+        assertThat(detachedBooking.toString())
+                .contains("id=", "status=WAITING")
+                .doesNotContain("item=", "booker=");
     }
 
     @Test
