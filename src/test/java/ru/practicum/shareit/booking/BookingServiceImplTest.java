@@ -24,6 +24,7 @@ import ru.practicum.shareit.user.UserRepository;
 import ru.practicum.shareit.user.UserService;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -230,6 +231,51 @@ class BookingServiceImplTest {
     }
 
     @Test
+    void bookingListsShouldFilterTemporalStatesForBookerAndOwner() {
+        UserDto owner = createUser("Owner", "owner@example.com");
+        UserDto booker = createUser("Booker", "booker@example.com");
+        ItemDto itemDto = createItem(owner.getId(), true);
+        Item item = itemRepository.findById(itemDto.getId()).orElseThrow();
+        User bookerEntity = userRepository.findById(booker.getId()).orElseThrow();
+        LocalDateTime now = LocalDateTime.now();
+
+        Booking past = bookingRepository.save(new Booking(
+                null,
+                now.minusDays(2),
+                now.minusDays(1),
+                item,
+                bookerEntity,
+                BookingStatus.APPROVED
+        ));
+        Booking current = bookingRepository.save(new Booking(
+                null,
+                now.minusHours(1),
+                now.plusHours(1),
+                item,
+                bookerEntity,
+                BookingStatus.APPROVED
+        ));
+        Booking future = bookingRepository.save(new Booking(
+                null,
+                now.plusDays(1),
+                now.plusDays(2),
+                item,
+                bookerEntity,
+                BookingStatus.WAITING
+        ));
+
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "PAST"), past.getId());
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "CURRENT"), current.getId());
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "FUTURE"), future.getId());
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "WAITING"), future.getId());
+
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "PAST"), past.getId());
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "CURRENT"), current.getId());
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "FUTURE"), future.getId());
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "WAITING"), future.getId());
+    }
+
+    @Test
     void bookingListsShouldFilterByStateAndSortByStartDescending() {
         UserDto owner = createUser("Owner", "owner@example.com");
         UserDto booker = createUser("Booker", "booker@example.com");
@@ -271,5 +317,11 @@ class BookingServiceImplTest {
                 ownerId,
                 new ItemDto(null, "Drill", "Impact drill", available)
         );
+    }
+
+    private void assertBookingIds(List<BookingDto> bookings, Long... expectedIds) {
+        assertThat(bookings)
+                .extracting(BookingDto::getId)
+                .containsExactly(expectedIds);
     }
 }

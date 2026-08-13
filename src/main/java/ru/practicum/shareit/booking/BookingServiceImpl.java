@@ -1,6 +1,8 @@
 package ru.practicum.shareit.booking;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.booking.dto.BookingCreateDto;
@@ -82,7 +84,7 @@ public class BookingServiceImpl implements BookingService {
     public List<BookingDto> getByBooker(Long userId, String state) {
         findUser(userId);
         BookingState bookingState = BookingState.from(state);
-        return findByBookerAndState(userId, bookingState).stream()
+        return findByUserAndState(BookingSpecifications.byBooker(userId), bookingState).stream()
                 .map(BookingMapper::toBookingDto)
                 .toList();
     }
@@ -91,39 +93,20 @@ public class BookingServiceImpl implements BookingService {
     public List<BookingDto> getByOwner(Long userId, String state) {
         findUser(userId);
         BookingState bookingState = BookingState.from(state);
-        return findByOwnerAndState(userId, bookingState).stream()
+        return findByUserAndState(BookingSpecifications.byOwner(userId), bookingState).stream()
                 .map(BookingMapper::toBookingDto)
                 .toList();
     }
 
-    private List<Booking> findByBookerAndState(Long userId, BookingState state) {
+    private List<Booking> findByUserAndState(
+            Specification<Booking> userSpecification,
+            BookingState state
+    ) {
         LocalDateTime now = LocalDateTime.now();
-        return switch (state) {
-            case ALL -> bookingRepository.findAllByBookerIdOrderByStartDesc(userId);
-            case CURRENT -> bookingRepository
-                    .findAllByBookerIdAndStartBeforeAndEndAfterOrderByStartDesc(userId, now, now);
-            case PAST -> bookingRepository.findAllByBookerIdAndEndBeforeOrderByStartDesc(userId, now);
-            case FUTURE -> bookingRepository.findAllByBookerIdAndStartAfterOrderByStartDesc(userId, now);
-            case WAITING -> bookingRepository
-                    .findAllByBookerIdAndStatusOrderByStartDesc(userId, BookingStatus.WAITING);
-            case REJECTED -> bookingRepository
-                    .findAllByBookerIdAndStatusOrderByStartDesc(userId, BookingStatus.REJECTED);
-        };
-    }
-
-    private List<Booking> findByOwnerAndState(Long userId, BookingState state) {
-        LocalDateTime now = LocalDateTime.now();
-        return switch (state) {
-            case ALL -> bookingRepository.findAllByItemOwnerIdOrderByStartDesc(userId);
-            case CURRENT -> bookingRepository
-                    .findAllByItemOwnerIdAndStartBeforeAndEndAfterOrderByStartDesc(userId, now, now);
-            case PAST -> bookingRepository.findAllByItemOwnerIdAndEndBeforeOrderByStartDesc(userId, now);
-            case FUTURE -> bookingRepository.findAllByItemOwnerIdAndStartAfterOrderByStartDesc(userId, now);
-            case WAITING -> bookingRepository
-                    .findAllByItemOwnerIdAndStatusOrderByStartDesc(userId, BookingStatus.WAITING);
-            case REJECTED -> bookingRepository
-                    .findAllByItemOwnerIdAndStatusOrderByStartDesc(userId, BookingStatus.REJECTED);
-        };
+        Specification<Booking> specification = userSpecification
+                .and(BookingSpecifications.byState(state, now));
+        Sort newestFirst = Sort.by(Sort.Direction.DESC, "start");
+        return bookingRepository.findAll(specification, newestFirst);
     }
 
     private void validateBookingDates(BookingCreateDto bookingDto) {
