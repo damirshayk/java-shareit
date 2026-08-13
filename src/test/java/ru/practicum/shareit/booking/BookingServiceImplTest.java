@@ -1,5 +1,7 @@
 package ru.practicum.shareit.booking;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -45,6 +47,9 @@ class BookingServiceImplTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Test
     void ownerShouldApproveBookingCreatedByAnotherUser() {
         UserDto owner = createUser("Owner", "owner@example.com");
@@ -61,8 +66,29 @@ class BookingServiceImplTest {
 
         assertThat(created.getStatus()).isEqualTo(BookingStatus.WAITING);
         assertThat(approved.getStatus()).isEqualTo(BookingStatus.APPROVED);
-        assertThat(approved.getItem().getId()).isEqualTo(item.getId());
+        assertThat(approved.getItem().id()).isEqualTo(item.getId());
         assertThat(approved.getBooker().getId()).isEqualTo(booker.getId());
+    }
+
+    @Test
+    void bookingResponseShouldContainOnlyItemIdAndName() {
+        UserDto owner = createUser("Owner", "owner@example.com");
+        UserDto booker = createUser("Booker", "booker@example.com");
+        ItemDto item = createItem(owner.getId(), true);
+
+        BookingDto booking = bookingService.create(
+                booker.getId(),
+                new BookingCreateDto(
+                        item.getId(),
+                        LocalDateTime.now().plusDays(1),
+                        LocalDateTime.now().plusDays(2)
+                )
+        );
+        JsonNode itemJson = objectMapper.valueToTree(booking.getItem());
+
+        assertThat(itemJson.has("id")).isTrue();
+        assertThat(itemJson.has("name")).isTrue();
+        assertThat(itemJson.size()).isEqualTo(2);
     }
 
     @Test
