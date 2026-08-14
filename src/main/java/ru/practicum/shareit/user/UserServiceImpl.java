@@ -1,7 +1,10 @@
 package ru.practicum.shareit.user;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
@@ -11,6 +14,7 @@ import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile(UserDto.EMAIL_REGEX);
@@ -18,14 +22,19 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
 
     @Override
-    public synchronized UserDto create(UserDto userDto) {
+    @Transactional
+    public UserDto create(UserDto userDto) {
         checkEmailIsUnique(userDto.getEmail(), null);
-        User saved = userRepository.save(UserMapper.toUser(userDto));
-        return UserMapper.toUserDto(saved);
+        try {
+            return UserMapper.toUserDto(userRepository.saveAndFlush(UserMapper.toUser(userDto)));
+        } catch (DataIntegrityViolationException exception) {
+            throw new ConflictException("Email уже используется");
+        }
     }
 
     @Override
-    public synchronized UserDto update(Long userId, UserDto userDto) {
+    @Transactional
+    public UserDto update(Long userId, UserDto userDto) {
         User current = findUser(userId);
 
         if (userDto.getName() != null) {
@@ -38,7 +47,11 @@ public class UserServiceImpl implements UserService {
             current.setEmail(userDto.getEmail());
         }
 
-        return UserMapper.toUserDto(userRepository.save(current));
+        try {
+            return UserMapper.toUserDto(userRepository.saveAndFlush(current));
+        } catch (DataIntegrityViolationException exception) {
+            throw new ConflictException("Email уже используется");
+        }
     }
 
     @Override
@@ -48,14 +61,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserDto> getAll() {
-        return userRepository.findAll().stream()
+        return userRepository.findAll(Sort.by(Sort.Direction.ASC, "id")).stream()
                 .map(UserMapper::toUserDto)
                 .toList();
     }
 
     @Override
-    public synchronized void delete(Long userId) {
-        if (!userRepository.deleteById(userId)) {
+    @Transactional
+    public void delete(Long userId) {
+        if (userRepository.deleteUserById(userId) == 0) {
             throw new NotFoundException("Пользователь с id " + userId + " не найден");
         }
     }
@@ -68,7 +82,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private void checkEmailIsUnique(String email, Long currentUserId) {
-        userRepository.findByEmail(email)
+        userRepository.findByEmailIgnoreCase(email)
                 .filter(user -> !user.getId().equals(currentUserId))
                 .ifPresent(user -> {
                     throw new ConflictException("Email уже используется");
