@@ -1,5 +1,7 @@
 package ru.practicum.shareit.booking;
 
+import jakarta.persistence.criteria.Fetch;
+import jakarta.persistence.criteria.JoinType;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
@@ -36,6 +38,16 @@ final class BookingSpecifications {
                     criteriaBuilder.greaterThan(root.get("start"), now);
             case WAITING -> withStatus(BookingStatus.WAITING);
             case REJECTED -> withStatus(BookingStatus.REJECTED);
+        };
+    }
+
+    static Specification<Booking> withDetails() {
+        return (root, query, criteriaBuilder) -> {
+            Fetch<Object, Object> item = root.fetch("item", JoinType.INNER);
+            item.fetch("owner", JoinType.INNER);
+            root.fetch("booker", JoinType.INNER);
+            query.distinct(true);
+            return criteriaBuilder.conjunction();
         };
     }
 

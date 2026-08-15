@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -264,15 +266,15 @@ class BookingServiceImplTest {
                 BookingStatus.WAITING
         ));
 
-        assertBookingIds(bookingService.getByBooker(booker.getId(), "PAST"), past.getId());
-        assertBookingIds(bookingService.getByBooker(booker.getId(), "CURRENT"), current.getId());
-        assertBookingIds(bookingService.getByBooker(booker.getId(), "FUTURE"), future.getId());
-        assertBookingIds(bookingService.getByBooker(booker.getId(), "WAITING"), future.getId());
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "PAST", 0, 10), past.getId());
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "CURRENT", 0, 10), current.getId());
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "FUTURE", 0, 10), future.getId());
+        assertBookingIds(bookingService.getByBooker(booker.getId(), "WAITING", 0, 10), future.getId());
 
-        assertBookingIds(bookingService.getByOwner(owner.getId(), "PAST"), past.getId());
-        assertBookingIds(bookingService.getByOwner(owner.getId(), "CURRENT"), current.getId());
-        assertBookingIds(bookingService.getByOwner(owner.getId(), "FUTURE"), future.getId());
-        assertBookingIds(bookingService.getByOwner(owner.getId(), "WAITING"), future.getId());
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "PAST", 0, 10), past.getId());
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "CURRENT", 0, 10), current.getId());
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "FUTURE", 0, 10), future.getId());
+        assertBookingIds(bookingService.getByOwner(owner.getId(), "WAITING", 0, 10), future.getId());
     }
 
     @Test
@@ -298,14 +300,51 @@ class BookingServiceImplTest {
         );
         bookingService.approve(owner.getId(), first.getId(), false);
 
-        assertThat(bookingService.getByBooker(booker.getId(), "ALL"))
+        assertThat(bookingService.getByBooker(booker.getId(), "ALL", 0, 10))
                 .extracting(BookingDto::getId)
                 .containsExactly(second.getId(), first.getId());
-        assertThat(bookingService.getByBooker(booker.getId(), "REJECTED"))
+        assertThat(bookingService.getByBooker(booker.getId(), "ALL", 1, 1))
                 .extracting(BookingDto::getId)
                 .containsExactly(first.getId());
-        assertThatThrownBy(() -> bookingService.getByBooker(booker.getId(), "UNKNOWN"))
+        assertThat(bookingService.getByBooker(booker.getId(), "REJECTED", 0, 10))
+                .extracting(BookingDto::getId)
+                .containsExactly(first.getId());
+        assertThatThrownBy(() -> bookingService.getByBooker(booker.getId(), "UNKNOWN", 0, 10))
                 .isInstanceOf(ValidationException.class);
+    }
+
+    @Test
+    void bookingListShouldNotRunCountQuery() {
+        UserDto owner = createUser("Owner", "owner@example.com");
+        UserDto booker = createUser("Booker", "booker@example.com");
+        ItemDto item = createItem(owner.getId(), true);
+        bookingService.create(
+                booker.getId(),
+                new BookingCreateDto(
+                        item.getId(),
+                        LocalDateTime.now().plusDays(1),
+                        LocalDateTime.now().plusDays(2)
+                )
+        );
+        bookingService.create(
+                booker.getId(),
+                new BookingCreateDto(
+                        item.getId(),
+                        LocalDateTime.now().plusDays(3),
+                        LocalDateTime.now().plusDays(4)
+                )
+        );
+        entityManager.flush();
+        entityManager.clear();
+        Statistics statistics = entityManager.getEntityManagerFactory()
+                .unwrap(SessionFactory.class)
+                .getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+
+        bookingService.getByBooker(booker.getId(), "ALL", 0, 1);
+
+        assertThat(statistics.getQueryExecutionCount()).isEqualTo(2);
     }
 
     private UserDto createUser(String name, String email) {

@@ -1,10 +1,13 @@
 package ru.practicum.shareit.booking;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.ScrollPosition;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.shareit.OffsetPageRequest;
 import ru.practicum.shareit.booking.dto.BookingCreateDto;
 import ru.practicum.shareit.booking.dto.BookingDto;
 import ru.practicum.shareit.exception.ForbiddenException;
@@ -81,32 +84,55 @@ public class BookingServiceImpl implements BookingService {
     }
 
     @Override
-    public List<BookingDto> getByBooker(Long userId, String state) {
-        findUser(userId);
+    public List<BookingDto> getByBooker(Long userId, String state, int from, int size) {
+        ensureUserExists(userId);
         BookingState bookingState = BookingState.from(state);
-        return findByUserAndState(BookingSpecifications.byBooker(userId), bookingState).stream()
+        return findByUserAndState(
+                BookingSpecifications.byBooker(userId),
+                bookingState,
+                from,
+                size
+        ).stream()
                 .map(BookingMapper::toBookingDto)
                 .toList();
     }
 
     @Override
-    public List<BookingDto> getByOwner(Long userId, String state) {
-        findUser(userId);
+    public List<BookingDto> getByOwner(Long userId, String state, int from, int size) {
+        ensureUserExists(userId);
         BookingState bookingState = BookingState.from(state);
-        return findByUserAndState(BookingSpecifications.byOwner(userId), bookingState).stream()
+        return findByUserAndState(
+                BookingSpecifications.byOwner(userId),
+                bookingState,
+                from,
+                size
+        ).stream()
                 .map(BookingMapper::toBookingDto)
                 .toList();
     }
 
     private List<Booking> findByUserAndState(
             Specification<Booking> userSpecification,
-            BookingState state
+            BookingState state,
+            int from,
+            int size
     ) {
         LocalDateTime now = LocalDateTime.now();
         Specification<Booking> specification = userSpecification
-                .and(BookingSpecifications.byState(state, now));
-        Sort newestFirst = Sort.by(Sort.Direction.DESC, "start");
-        return bookingRepository.findAll(specification, newestFirst);
+                .and(BookingSpecifications.byState(state, now))
+                .and(BookingSpecifications.withDetails());
+        Sort newestFirst = Sort.by(Sort.Direction.DESC, "start")
+                .and(Sort.by(Sort.Direction.DESC, "id"));
+        Pageable page = new OffsetPageRequest(from, size, newestFirst);
+        ScrollPosition position = page.getOffset() == 0
+                ? ScrollPosition.offset()
+                : ScrollPosition.offset(page.getOffset() - 1);
+        return bookingRepository.findBy(specification, query -> query
+                .sortBy(page.getSort())
+                .limit(page.getPageSize())
+                .scroll(position)
+                .getContent()
+        );
     }
 
     private void validateBookingDates(BookingCreateDto bookingDto) {
@@ -140,5 +166,11 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new NotFoundException(
                         "Пользователь с id " + userId + " не найден"
                 ));
+    }
+
+    private void ensureUserExists(Long userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new NotFoundException("Пользователь с id " + userId + " не найден");
+        }
     }
 }

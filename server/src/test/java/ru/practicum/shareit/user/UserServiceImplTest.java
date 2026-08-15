@@ -1,14 +1,11 @@
 package ru.practicum.shareit.user;
 
-import jakarta.validation.Validation;
-import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
-import ru.practicum.shareit.exception.ValidationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -66,21 +63,6 @@ class UserServiceImplTest {
         assertThatThrownBy(() ->
                 userService.update(first.getId(), new UserDto(null, null, "second@example.com")))
                 .isInstanceOf(ConflictException.class);
-    }
-
-    @Test
-    void createAndUpdateShouldUseTheSameEmailRules() {
-        UserDto invalidUser = new UserDto(null, "User", "a@b..com");
-
-        try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
-            assertThat(factory.getValidator().validate(invalidUser)).isNotEmpty();
-        }
-
-        UserDto created = userService.create(new UserDto(null, "User", "old@example.com"));
-        assertThatThrownBy(() -> userService.update(
-                created.getId(),
-                new UserDto(null, null, "a@b..com")
-        )).isInstanceOf(ValidationException.class);
     }
 
     @Test

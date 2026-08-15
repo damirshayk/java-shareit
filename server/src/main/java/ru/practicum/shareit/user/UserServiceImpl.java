@@ -7,17 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
-import ru.practicum.shareit.exception.ValidationException;
 
 import java.util.List;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class UserServiceImpl implements UserService {
-
-    private static final Pattern EMAIL_PATTERN = Pattern.compile(UserDto.EMAIL_REGEX);
 
     private final UserRepository userRepository;
 
@@ -38,11 +34,9 @@ public class UserServiceImpl implements UserService {
         User current = findUser(userId);
 
         if (userDto.getName() != null) {
-            validateName(userDto.getName());
             current.setName(userDto.getName());
         }
         if (userDto.getEmail() != null) {
-            validateEmail(userDto.getEmail());
             checkEmailIsUnique(userDto.getEmail(), userId);
             current.setEmail(userDto.getEmail());
         }
@@ -89,15 +83,4 @@ public class UserServiceImpl implements UserService {
                 });
     }
 
-    private void validateName(String name) {
-        if (name.isBlank()) {
-            throw new ValidationException("Имя пользователя не может быть пустым");
-        }
-    }
-
-    private void validateEmail(String email) {
-        if (email.isBlank() || !EMAIL_PATTERN.matcher(email).matches()) {
-            throw new ValidationException("Email должен быть корректным");
-        }
-    }
 }
