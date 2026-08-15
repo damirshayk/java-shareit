@@ -21,6 +21,7 @@ import ru.practicum.shareit.item.dto.ItemDto;
 @RestController
 @RequestMapping("/items")
 @RequiredArgsConstructor
+@Validated
 public class ItemController {
 
     private static final String USER_ID_HEADER = "X-Sharer-User-Id";
